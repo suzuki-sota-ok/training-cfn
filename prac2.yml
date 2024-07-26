@@ -2,7 +2,12 @@ AWSTemplateFormatVersion: # テンプレートのバージョンを指定
 Description: Create EC2 and ALB for WordPress
 
 Parameters:
-  EC2AMI:
+  EnvName:
+    # 文字列型
+    # 選択肢はdev, stage, prodの3つ
+    # 初期値はdev
+
+  EC2AMIId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
 
@@ -20,7 +25,7 @@ Parameters:
 
   KeyName:
     Description: The EC2 Key Pair to allow SSH access to the instance
-    Type: # キーペア専用の型を入力（文字列型ではないので注意）
+    Type: # キーペア専用の型を入力（ただの文字列ではないよ）
 
 Resources:
 
