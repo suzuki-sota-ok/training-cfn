@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create RDS for WordPress
+
+Parameters:
+  # 環境名を定義
+    # 文字列
+    # 選択肢はdev, stage, prod
+    # 初期値はdev
+  
+  # データベースのマスター名を定義
+    # 文字列
+
+  # データベースのパスワードを定義
+    # 文字列
+
+  # データベース名を定義
+    # 文字列
+
+  # prac1で作成したプライベートサブネットAを指定
+
+  # prac1で作成したプライベートサブネットCを指定
+
+  # prac1で作成したVPCのIDを指定
+
+  # prac2で作成したEC2セキュリティグループを指定
+
+Resources:
+  # ------------------------------------------------------------#
+  #  Database Subnet Group
+  # ------------------------------------------------------------#
+  RDSDBSubnetGroup:
+    Type:
+    Properties:
+      DBSubnetGroupName: !Sub ${AWS::StackName}-${EnvName}-rds-subnet-group
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${EnvName}-rds-subnet-group
+
+
+  # ------------------------------------------------------------#
+  #  RDS Security Group
+  # ------------------------------------------------------------#
+  RDSSG:
+    Type:
+    Properties:
+      GroupName: !Sub ${AWS::StackName}-${EnvName}-rds-sg
+      GroupDescription: Allow Request from WebServer
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${EnvName}-rds-sg
+
+  # ------------------------------------------------------------#
+  #  RDS
+  # ------------------------------------------------------------#
+  RDSDatabase:
+    # DBのストレージの量は20GiB
+    # DBの最大ストレージ量は1000GiB
+    # バージョンアップグレードはすべてFalse
+    # AZはap-northeast-1a
+    # 自動バックアップの保持日数は0日
+    # インスタンスタイプはT3 Microを指定
+    # インスタンス名は"スタック名-環境名-rds"とする
+    # データベース名、サブネットグループ、マスター名、パスワードはパラメータを参照
+    # データベースのエンジンはMySQL
+    # DeleteAutomatedBackupsはFalseにする
+    # DeletionProtectionはFalseにする
+    # マルチAZはFalse
+    # パブリックからのアクセスを拒否（Falseにする）
+    # DBインスタンスのデータは暗号化しない（Falseにする）
+    # ストレージタイプはgp2を市
+    # Nameタグをつける。"スタック名-環境名-rds"とする
+    # EC2のセキュリティグループを参照する
