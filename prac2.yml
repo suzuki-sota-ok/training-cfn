@@ -1,11 +1,15 @@
-AWSTemplateFormatVersion: # テンプレートのバージョンを指定
+AWSTemplateFormatVersion: '2010-09-09'
 Description: Create EC2 and ALB for WordPress
 
 Parameters:
   EnvName:
-    # 文字列型
-    # 選択肢はdev, stage, prodの3つ
-    # 初期値はdev
+    Type: String
+    Description: Input Env Name.
+    AllowedValues:
+      - dev
+      - stage
+      - prod
+    Default: dev
 
   EC2AMIId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
@@ -14,18 +18,22 @@ Parameters:
   # prac1で作成したVPCのIDを入力する
   VpcId:
     Description: Input ID for VPC.
-    Type: # 文字列
+    Type: String
 
   # prac1で作成したパブリックサブネットAの値を入力
   PublicSubnetA:
     Description: Input ID for Public Subnet A. 
-    Type: # 文字列
+    Type: String
   
   # prac1で作成したパブリックサブネットCの値を入力
+  PublicSubnetC:
+    Description: Input ID for Public Subnet C. 
+    Type: String
 
+  # 事前準備で作成したキーペアを指定
   KeyName:
     Description: The EC2 Key Pair to allow SSH access to the instance
-    Type: # キーペア専用の型を入力（ただの文字列ではないよ）
+    Type: "AWS::EC2::KeyPair::KeyName"
 
 Resources:
 
@@ -33,7 +41,7 @@ Resources:
   #  ALB Security Group
   # ------------------------------------------------------------#
   ALBSecurityGroup:
-    Type: # セキュリティグループのリソースタイプを指定
+    Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: !Sub ${AWS::StackName}-${EnvName}-alb-sg
       GroupDescription: Allow HTTP access from internet
@@ -41,9 +49,9 @@ Resources:
       SecurityGroupIngress:
         # http
         - IpProtocol: tcp
-          FromPort: #HTTPのポート番号を数字で入力
-          ToPort: #HTTPのポート番号を数字で入力
-          CidrIp: #すべての通信を許可
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-${EnvName}-alb-sg
@@ -69,7 +77,7 @@ Resources:
   #  EC2 Security Group
   # ------------------------------------------------------------#
   EC2SecurityGroup:
-    Type: # セキュリティグループのリソースタイプを指定
+    Type: AWS::EC2::SecurityGroup
     DependsOn: ALBSecurityGroup
     Properties:
       GroupName: !Sub ${AWS::StackName}-${EnvName}-ec2-sg
@@ -78,13 +86,13 @@ Resources:
       SecurityGroupIngress:
         # SSH
         - IpProtocol: tcp
-          FromPort: #SSHのポート番号を数字で入力
-          ToPort: #SSHのポート番号を数字で入力
+          FromPort: 22
+          ToPort: 22
           CidrIp: 0.0.0.0/0
         # HTTP
         - IpProtocol: tcp
-          FromPort: #HTTPのポート番号を数字で入力
-          ToPort: #HTTPのポート番号を数字で入力
+          FromPort: 80
+          ToPort: 80
           SourceSecurityGroupId: !Ref ALBSecurityGroup
       Tags:
         - Key: Name
@@ -94,7 +102,7 @@ Resources:
   #  EC2
   # ------------------------------------------------------------#
   EC2Instance:
-    Type: # EC2のリソースタイプを指定
+    Type: AWS::EC2::Instance
     Properties:
       AvailabilityZone: "ap-northeast-1a"
       BlockDeviceMappings:
@@ -102,13 +110,13 @@ Resources:
           Ebs:
             VolumeSize: 8
             VolumeType: gp2
-      ImageId: # Parametersで定義したAMIのIDを参照
+      ImageId: !Ref EC2AMIId
       InstanceInitiatedShutdownBehavior: 'stop'
-      InstanceType: # インスタンスタイプを指定
-      KeyName: # Parametersで定義したキーペアを参照
+      InstanceType: t2.micro
+      KeyName: !Ref KeyName
       SecurityGroupIds:
-        - # EC2のセキュリティグループを参照
-      SubnetId: # Parametersで定義したパブリックサブネットAを参照
+        - !Ref EC2SecurityGroup
+      SubnetId: !Ref PublicSubnetA
       Tenancy: default
       Tags:
         - Key: Name
@@ -147,14 +155,14 @@ Resources:
       HealthCheckPath: /healths/wp-check
       HealthCheckEnabled: True
       Name: !Sub ${AWS::StackName}-${EnvName}-alb-tg
-      Port: #HTTPのポート番号を数字で入力
+      Port: 80
       Protocol: HTTP
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-${EnvName}-alb-tg
       Targets:
-        - Id: # EC2インスタンスを参照
-          Port: #HTTPのポート番号を数字で入力
+        - Id: !Ref EC2Instance
+          Port: 80
       VpcId: !Ref VpcId
 
   # ------------------------------------------------------------#
@@ -166,6 +174,12 @@ Resources:
       DefaultActions:
         - TargetGroupArn: !Ref ALBTargetGroup
           Type: forward
-      LoadBalancerArn: # Application Load Balacerを参照
-      Port: #HTTPのポート番号を数字で入力
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
       Protocol: HTTP
+
+Outputs:
+  EC2SecurityGroup:
+    Value: !Ref EC2SecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-EC2SecurityGroup
