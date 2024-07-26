@@ -18,6 +18,10 @@ Parameters:
   
   # prac1で作成したパブリックサブネットCの値を入力
 
+  KeyName:
+    Description: The EC2 Key Pair to allow SSH access to the instance
+    Type: # キーペア専用の型を入力（文字列型ではないので注意）
+
 Resources:
 
   # ------------------------------------------------------------#
