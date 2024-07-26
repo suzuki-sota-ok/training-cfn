@@ -1,0 +1,129 @@
+AWSTemplateFormatVersion: # テンプレートのバージョンを指定
+Description: Create EC2 for WordPress
+
+Parameters:
+  EC2AMI:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+
+  # prac1で作成したVPCのIDを入力する
+  VpcId:
+    Description: Input ID for VPC.
+    Type: # 文字列
+
+  # prac1で作成したパブリックサブネットAの値を入力
+  PublicSubnetA:
+    Description: Input ID for Public Subnet A. 
+    Type: # 文字列
+  
+  # prac1で作成したパブリックサブネットCの値を入力
+
+Resources:
+
+  # ------------------------------------------------------------#
+  #  ALB Security Group
+  # ------------------------------------------------------------#
+  ALBSecurityGroup:
+    Type: # セキュリティグループのリソースタイプを指定
+    Properties:
+      GroupName: !Sub ${AWS::StackName}-${EnvName}-alb-sg
+      GroupDescription: Allow HTTP access from internet
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # http
+        - IpProtocol: tcp
+          FromPort: #HTTPのポート番号を数字で入力
+          ToPort: #HTTPのポート番号を数字で入力
+          CidrIp: #すべての通信を許可
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${EnvName}-alb-sg
+
+  # ------------------------------------------------------------#
+  #  ALB
+  # ------------------------------------------------------------#
+  ApplicationLoadBalancer:
+    Type : AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${AWS::StackName}-${EnvName}-alb
+      Scheme: "internet-facing"
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetC
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${EnvName}-alb
+
+  # ------------------------------------------------------------#
+  #  EC2 Security Group
+  # ------------------------------------------------------------#
+  EC2SecurityGroup:
+    Type: # セキュリティグループのリソースタイプを指定
+    DependsOn: ALBSecurityGroup
+    Properties:
+      GroupName: !Sub ${AWS::StackName}-${EnvName}-ec2-sg
+      GroupDescription: Allow SSH from Internet
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # SSH
+        - IpProtocol: tcp
+          FromPort: #SSHのポート番号を数字で入力
+          ToPort: #SSHのポート番号を数字で入力
+          CidrIp: 0.0.0.0/0
+        # HTTP
+        - IpProtocol: tcp
+          FromPort: #HTTPのポート番号を数字で入力
+          ToPort: #HTTPのポート番号を数字で入力
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${EnvName}-ec2-sg
+
+  # ------------------------------------------------------------#
+  #  EC2
+  # ------------------------------------------------------------#
+  EC2Instance:
+    Type: # EC2のリソースタイプを指定
+    Properties:
+      AvailabilityZone: "ap-northeast-1a"
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 8
+            VolumeType: gp2
+      ImageId: # Parametersで定義したAMIのIDを参照
+      InstanceInitiatedShutdownBehavior: 'stop'
+      InstanceType: # インスタンスタイプを指定
+      KeyName: # Parametersで定義したキーペアを参照
+      SecurityGroupIds:
+        - # EC2のセキュリティグループを参照
+      SubnetId: # Parametersで定義したパブリックサブネットAを参照
+      Tenancy: default
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${EnvName}-ec2
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          echo "===========yum -y install httpd==========="
+          yum -y update
+          echo "===========amazon-linux-extras install php7.2 -y==========="
+          amazon-linux-extras install php7.2 -y
+          echo "===========yum -y install mysql httpd php-mbstring php-xml gd php-gd==========="
+          yum -y install mysql httpd php-mbstring php-xml gd php-gd
+          echo "===========systemctl enable/start httpd.service ==========="
+          systemctl enable httpd.service
+          systemctl start httpd.service
+          echo "=========== http://ja.wordpress.org/latest-ja.tar.gz ~/ ==========="
+          wget http://ja.wordpress.org/latest-ja.tar.gz
+          echo "=========== tar zxvf ~/latest-ja.tar.gz ==========="
+          tar zxvf latest-ja.tar.gz
+          echo "=========== cp -r wordpress/* /var/www/html/ ==========="
+          cp -r wordpress/* /var/www/html/
+          chown apache:apache -R /var/www/html
+          cd /var/www/html/
+          mkdir healths
+          cd healths
+          touch wp-check
