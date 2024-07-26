@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: # テンプレートのバージョンを指定
-Description: Create EC2 for WordPress
+Description: Create EC2 and ALB for WordPress
 
 Parameters:
   EC2AMI:
@@ -127,3 +127,36 @@ Resources:
           mkdir healths
           cd healths
           touch wp-check
+
+  # ------------------------------------------------------------#
+  #  Target Group
+  # ------------------------------------------------------------#
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      # Health check enabled must be true for target groups with target type 'instance' 
+      HealthCheckPath: /healths/wp-check
+      HealthCheckEnabled: True
+      Name: !Sub ${AWS::StackName}-${EnvName}-alb-tg
+      Port: #HTTPのポート番号を数字で入力
+      Protocol: HTTP
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${EnvName}-alb-tg
+      Targets:
+        - Id: # EC2インスタンスを参照
+          Port: #HTTPのポート番号を数字で入力
+      VpcId: !Ref VpcId
+
+  # ------------------------------------------------------------#
+  #  ALB Listner
+  # ------------------------------------------------------------#
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref ALBTargetGroup
+          Type: forward
+      LoadBalancerArn: # Application Load Balacerを参照
+      Port: #HTTPのポート番号を数字で入力
+      Protocol: HTTP
