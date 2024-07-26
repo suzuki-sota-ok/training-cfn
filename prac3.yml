@@ -1,50 +1,87 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Create RDS for WordPress
+Description: Simple WordPress Blog Site
 
 Parameters:
   # 環境名を定義
-    # 文字列
-    # 選択肢はdev, stage, prod
-    # 初期値はdev
+  EnvName:
+    Type: String
+    Description: Input Env Name.
+    AllowedValues:
+      - dev
+      - stage
+      - prod
+    Default: dev
   
   # データベースのマスター名を定義
-    # 文字列
+  DatabaseMasterName:
+    Description: Input Database Master User Name.
+    Type : String
+    Default: wordpress
 
   # データベースのパスワードを定義
-    # 文字列
+  DatabaseMasterPassword:
+    Description: Input Database Master User Password.
+    Type : String
+
 
   # データベース名を定義
-    # 文字列
+  DatabaseName:
+    Description: Input Database Name.
+    Type : String
+    Default: wordpress
+
 
   # prac1で作成したプライベートサブネットAを指定
+  PrivateSubnetAId:
+    Description: Input ID for Private Subnet A.
+    Type: String
 
   # prac1で作成したプライベートサブネットCを指定
+  PrivateSubnetCId:
+    Description: Input ID for Private Subnet C.
+    Type: String
 
   # prac1で作成したVPCのIDを指定
+  VpcId:
+    Description: Input ID for VPC.
+    Type: String
 
   # prac2で作成したEC2セキュリティグループを指定
+  EC2SecurityGroupId:
+    Description: Input ID for EC2 Security Group.
+    Type: String
 
 Resources:
   # ------------------------------------------------------------#
   #  Database Subnet Group
   # ------------------------------------------------------------#
   RDSDBSubnetGroup:
-    Type:
+    Type: AWS::RDS::DBSubnetGroup
     Properties:
+      DBSubnetGroupDescription: RDS Subnet Group for WordPress
       DBSubnetGroupName: !Sub ${AWS::StackName}-${EnvName}-rds-subnet-group
+      SubnetIds:
+        - !Ref PrivateSubnetAId
+        - !Ref PrivateSubnetCId
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-${EnvName}-rds-subnet-group
-
 
   # ------------------------------------------------------------#
   #  RDS Security Group
   # ------------------------------------------------------------#
   RDSSG:
-    Type:
+    Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: !Sub ${AWS::StackName}-${EnvName}-rds-sg
       GroupDescription: Allow Request from WebServer
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # http
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref EC2SecurityGroupId
       Tags:
         - Key: Name
           Value: !Sub ${AWS::StackName}-${EnvName}-rds-sg
@@ -53,24 +90,36 @@ Resources:
   #  RDS
   # ------------------------------------------------------------#
   RDSDatabase:
-    # DBのストレージの量は20GiB
-    # DBの最大ストレージ量は1000GiB
-    # バージョンアップグレードはすべてFalse
-    # AZはap-northeast-1a
-    # 自動バックアップの保持日数は0日
-    # インスタンスタイプはT3 Microを指定
-    # インスタンス名は"スタック名-環境名-rds"とする
-    # データベース名、サブネットグループ、マスター名、パスワードはパラメータを参照
-    # データベースのエンジンはMySQL
-    # DeleteAutomatedBackupsはFalseにする
-    # DeletionProtectionはFalseにする
-    # マルチAZはFalse
-    # パブリックからのアクセスを拒否（Falseにする）
-    # DBインスタンスのデータは暗号化しない（Falseにする）
-    # ストレージタイプはgp2を市
-    # Nameタグをつける。"スタック名-環境名-rds"とする
-    # EC2のセキュリティグループを参照する
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 20
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: false
+      AvailabilityZone: ap-northeast-1a
+      BackupRetentionPeriod: 0
+      DBInstanceClass: db.t3.micro
+      DBInstanceIdentifier: WP-RDS-Database
+      DBName: !Ref DatabaseName
+      DBSubnetGroupName: !Ref RDSDBSubnetGroup
+      DeleteAutomatedBackups: false
+      DeletionProtection: false
+      Engine: mysql
+      # EngineVersion: 8.0.30
+      MasterUsername: !Ref DatabaseMasterName
+      MasterUserPassword: !Ref DatabaseMasterPassword
+      MaxAllocatedStorage: 1000
+      MultiAZ: false
+      PubliclyAccessible: false
+      StorageEncrypted: false
+      StorageType: gp2
+      Tags:
+        - Key: Name
+          Value: !Sub ${AWS::StackName}-${EnvName}-rds
+      VPCSecurityGroups:
+        - !Ref RDSSG
 
 Outputs:
-  # データベースのエンドポイント（DNS）を出力する
   DBEndpoint:
+    Value: !GetAtt DBInstance.Endpoint.Address
+    Export:
+      Name: !Sub ${AWS::StackName}-DBEndpoint
