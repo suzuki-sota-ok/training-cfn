@@ -144,7 +144,7 @@ Outputs:
   
   PrivateSubnetA:
     Description: PrivateSubnetA
-    Value: !RefPrivatecSubnetA
+    Value: !Ref PrivateSubnetA
     Export:
       Name: !Sub ${AWS::StackName}-${EnvName}-private-subnet-a
   
